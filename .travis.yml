@@ -1,0 +1,28 @@
+sudo: required
+dist: trusty
+
+os: linux
+
+language: c
+
+compiler:
+  - gcc
+  - clang
+
+env:
+  matrix:
+    - NGINX_VERSION=1.13.6
+    - NGINX_VERSION=1.12.2
+
+before_install:
+  - sudo apt-get install -qq -y cpanminus
+  - sudo cpanm -v --notest Test::Nginx > build.log 2>&1 || (cat build.log && exit 1)
+
+install:
+  - wget http://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz && tar -xzf nginx-${NGINX_VERSION}.tar.gz
+
+script:
+  - cd nginx-${NGINX_VERSION}/
+  -  ./configure --without-http_ssi_module --with-debug --add-module=.. > build.log 2>&1 || (cat build.log && exit 1)
+  - make -j2 > build.log 2>&1 || (cat build.log && exit 1)
+  - export PATH=$PATH:`pwd`/objs
