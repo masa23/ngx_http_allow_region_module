@@ -167,10 +167,12 @@ ngx_http_allow_region_inet(ngx_http_request_t *r, ngx_http_allow_region_loc_conf
         }
     }
 
-    rule_cust = alcf->rules_cust->elts;
-    for (i = 0; i < alcf->rules_cust->nelts; i++) {
-        if (( addr & rule_cust[i].mask) == rule_cust[i].addr) {
-            return NGX_DECLINED;
+    if ( alcf->rules_cust ) {
+        rule_cust = alcf->rules_cust->elts;
+        for (i = 0; i < alcf->rules_cust->nelts; i++) {
+            if (( addr & rule_cust[i].mask) == rule_cust[i].addr) {
+                return NGX_DECLINED;
+            }
         }
     }
 
@@ -219,36 +221,20 @@ ngx_http_allow_region_inet6(ngx_http_request_t *r, ngx_http_allow_region_loc_con
     next:
         continue;
     }
-
-    rule6_cust = alcf->rules6_cust->elts;
-    for (i = 0; i < alcf->rules6_cust->nelts; i++) {
-
-#if (NGX_DEBUG)
-        {
-        size_t  cl, ml, al;
-        u_char  ct[NGX_INET6_ADDRSTRLEN];
-        u_char  mt[NGX_INET6_ADDRSTRLEN];
-        u_char  at[NGX_INET6_ADDRSTRLEN];
-
-        cl = ngx_inet6_ntop(p, ct, NGX_INET6_ADDRSTRLEN);
-        ml = ngx_inet6_ntop(rule6_cust[i].mask.s6_addr, mt, NGX_INET6_ADDRSTRLEN);
-        al = ngx_inet6_ntop(rule6_cust[i].addr.s6_addr, at, NGX_INET6_ADDRSTRLEN);
-
-        ngx_log_debug6(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                       "access: %*s %*s %*s", cl, ct, ml, mt, al, at);
-        }
-#endif
-
-        for (n = 0; n < 16; n++) {
-            if ((p[n] & rule6_cust[i].mask.s6_addr[n]) != rule6_cust[i].addr.s6_addr[n]) {
-                goto next2;
+    if (alcf->rules6_cust) {
+        rule6_cust = alcf->rules6_cust->elts;
+        for (i = 0; i < alcf->rules6_cust->nelts; i++) {
+            for (n = 0; n < 16; n++) {
+                if ((p[n] & rule6_cust[i].mask.s6_addr[n]) != rule6_cust[i].addr.s6_addr[n]) {
+                    goto next2;
+                }
             }
+    
+            return NGX_DECLINED;
+    
+        next2:
+            continue;
         }
-
-        return NGX_DECLINED;
-
-    next2:
-        continue;
     }
     return NGX_HTTP_FORBIDDEN;
 }
