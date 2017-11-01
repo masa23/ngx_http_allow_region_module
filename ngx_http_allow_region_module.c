@@ -155,15 +155,17 @@ ngx_http_allow_region_inet(ngx_http_request_t *r, ngx_http_allow_region_loc_conf
     ngx_http_allow_region_rule_t  *rule;
     ngx_http_allow_region_rule_t  *rule_cust;
 
-    rule = alcf->rules->elts;
-    for (i = 0; i < alcf->rules->nelts; i++) {
+    if (alcf->rules){
+        rule = alcf->rules->elts;
+        for (i = 0; i < alcf->rules->nelts; i++) {
 
-        ngx_log_debug3(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                       "access: %08XD %08XD %08XD",
-                       addr, rule[i].mask, rule[i].addr);
+            ngx_log_debug3(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                           "access: %08XD %08XD %08XD",
+                           addr, rule[i].mask, rule[i].addr);
 
-        if ((addr & rule[i].mask) == rule[i].addr) {
-            return NGX_DECLINED;
+            if ((addr & rule[i].mask) == rule[i].addr) {
+                return NGX_DECLINED;
+            }
         }
     }
 
@@ -229,9 +231,9 @@ ngx_http_allow_region_inet6(ngx_http_request_t *r, ngx_http_allow_region_loc_con
                     goto next2;
                 }
             }
-    
+
             return NGX_DECLINED;
-    
+
         next2:
             continue;
         }
@@ -251,17 +253,16 @@ ngx_http_allow_region_rule(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     ngx_str_t                         *value;
     ngx_cidr_t                        cidr;
     ngx_http_allow_region_rule_t      *rule;
-    ngx_array_t                       *rules;
+    ngx_http_allow_region_rule_t      *rule_cust;
 #if (NGX_HAVE_INET6)
     ngx_http_allow_region_rule6_t     *rule6;
-    ngx_array_t                       *rules6;
+    ngx_http_allow_region_rule6_t     *rule6_cust;
 #endif
 
     all = 0;
     ngx_memzero(&cidr, sizeof(ngx_cidr_t));
 
     value = cf->args->elts;
-
 
     if (value[1].len == 3 && ngx_strcmp(value[1].data, "all") == 0) {
         all = 1;
@@ -283,56 +284,77 @@ ngx_http_allow_region_rule(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     if (cidr.family == AF_INET || all) {
         if (value[0].len == 15 && ngx_strcmp(value[0].data, "custom_allow_jp") == 0) {
-            rules = alcf->rules_cust;
-        } else {
-            rules = alcf->rules;
-        }
-
-        if (rules == NULL) {
-            rules = ngx_array_create(cf->pool, 4,
-                                           sizeof(ngx_http_allow_region_rule_t));
-            if (value[0].len == 15 && ngx_strcmp(value[0].data, "custom_allow_jp") == 0) {
-                alcf->rules_cust = rules;
-            } else {
-                alcf->rules = rules;
+            if (alcf->rules_cust == NULL) {
+                alcf->rules_cust = ngx_array_create(cf->pool, 4,
+                                               sizeof(ngx_http_allow_region_rule_t));
+                if (alcf->rules_cust == NULL) {
+                    return NGX_CONF_ERROR;
+                }
             }
-            if (rules == NULL) {
+
+            rule_cust = ngx_array_push(alcf->rules);
+            if (rule_cust == NULL) {
                 return NGX_CONF_ERROR;
             }
+
+            rule_cust->mask = cidr.u.in.mask;
+            rule_cust->addr = cidr.u.in.addr;
+        } else {
+            if (alcf->rules == NULL) {
+                alcf->rules = ngx_array_create(cf->pool, 4,
+                                               sizeof(ngx_http_allow_region_rule_t));
+                if (alcf->rules == NULL) {
+                    return NGX_CONF_ERROR;
+                }
+            }
+
+            rule = ngx_array_push(alcf->rules);
+            if (rule == NULL) {
+                return NGX_CONF_ERROR;
+            }
+
+            rule->mask = cidr.u.in.mask;
+            rule->addr = cidr.u.in.addr;
         }
 
-        rule = ngx_array_push(rules);
-        if (rule == NULL) {
-            return NGX_CONF_ERROR;
-        }
 
-        rule->mask = cidr.u.in.mask;
-        rule->addr = cidr.u.in.addr;
     }
 
 #if (NGX_HAVE_INET6)
     if (cidr.family == AF_INET6 || all) {
         if (value[0].len == 15 && ngx_strcmp(value[0].data, "custom_allow_jp") == 0) {
-            rules6 = alcf->rules6_cust;
-        } else {
-             rules6 = alcf->rules6;
-        }
+            if (alcf->rules6_cust == NULL) {
+                alcf->rules6_cust = ngx_array_create(cf->pool, 4,
+                                                sizeof(ngx_http_allow_region_rule6_t));
+                if (alcf->rules6_cust == NULL) {
+                    return NGX_CONF_ERROR;
+                }
+            }
 
-        if (rules6 == NULL) {
-            rules6 = ngx_array_create(cf->pool, 4,
-                                            sizeof(ngx_http_allow_region_rule6_t));
-            if (rules6 == NULL) {
+            rule6_cust = ngx_array_push(alcf->rules6_cust);
+            if (rule6_cust == NULL) {
                 return NGX_CONF_ERROR;
             }
-        }
 
-        rule6 = ngx_array_push(rules6);
-        if (rule6 == NULL) {
-            return NGX_CONF_ERROR;
-        }
+            rule6_cust->mask = cidr.u.in6.mask;
+            rule6_cust->addr = cidr.u.in6.addr;
+        }else{
+            if (alcf->rules6 == NULL) {
+                alcf->rules6 = ngx_array_create(cf->pool, 4,
+                                                sizeof(ngx_http_allow_region_rule6_t));
+                if (alcf->rules6 == NULL) {
+                    return NGX_CONF_ERROR;
+                }
+            }
 
-        rule6->mask = cidr.u.in6.mask;
-        rule6->addr = cidr.u.in6.addr;
+            rule6 = ngx_array_push(alcf->rules6);
+            if (rule6 == NULL) {
+                return NGX_CONF_ERROR;
+            }
+
+            rule6->mask = cidr.u.in6.mask;
+            rule6->addr = cidr.u.in6.addr;
+        }
     }
 #endif
 
@@ -359,16 +381,16 @@ ngx_http_allow_region_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_http_allow_region_loc_conf_t  *prev = parent;
     ngx_http_allow_region_loc_conf_t  *conf = child;
 
-    if (conf->rules == NULL
 #if (NGX_HAVE_INET6)
-        && conf->rules6 == NULL
-#endif
-    ) {
+    if (conf->rules == NULL && conf->rules6 == NULL) {
         conf->rules = prev->rules;
-#if (NGX_HAVE_INET6)
         conf->rules6 = prev->rules6;
-#endif
     }
+#else
+    if (conf->rules == NULL) {
+        conf->rules = prev->rules;
+    }
+#endif
 
     if ( conf->enable == -1 ) {
         conf->enable = prev->enable;
