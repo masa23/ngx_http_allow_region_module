@@ -109,7 +109,7 @@ ngx_http_allow_region_handler(ngx_http_request_t *r)
 
     alcf = ngx_http_get_module_loc_conf(r, ngx_http_allow_region_module);
 
-    if (!alcf->enable) {
+    if (alcf->enable != 1) {
         return NGX_DECLINED;
     }
 
@@ -370,6 +370,9 @@ ngx_http_allow_region_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
 #endif
     }
 
+    if ( conf->enable == -1 ) {
+        conf->enable = prev->enable;
+    }
     return NGX_CONF_OK;
 }
 
