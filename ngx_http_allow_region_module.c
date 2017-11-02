@@ -155,6 +155,8 @@ ngx_http_allow_region_inet(ngx_http_request_t *r, ngx_http_allow_region_loc_conf
     ngx_http_allow_region_rule_t  *rule;
     ngx_http_allow_region_rule_t  *rule_cust;
 
+    ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "DEBUG: ngx_http_allow_region_inet alcf:%p alcf->rules:%p", alcf, alcf->rules);
+
     if (alcf->rules){
         rule = alcf->rules->elts;
         for (i = 0; i < alcf->rules->nelts; i++) {
@@ -259,6 +261,8 @@ ngx_http_allow_region_rule(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     ngx_http_allow_region_rule6_t     *rule6_cust;
 #endif
 
+    ngx_conf_log_error(NGX_LOG_INFO, cf, 0, "DEBUG: ngx_http_allow_region_rule1 alcf:%p alcf->rules:%p", alcf, alcf->rules);
+
     all = 0;
     ngx_memzero(&cidr, sizeof(ngx_cidr_t));
 
@@ -292,7 +296,7 @@ ngx_http_allow_region_rule(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
                 }
             }
 
-            rule_cust = ngx_array_push(alcf->rules);
+            rule_cust = ngx_array_push(alcf->rules_cust);
             if (rule_cust == NULL) {
                 return NGX_CONF_ERROR;
             }
@@ -317,6 +321,7 @@ ngx_http_allow_region_rule(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             rule->addr = cidr.u.in.addr;
         }
 
+    ngx_conf_log_error(NGX_LOG_INFO, cf, 0, "DEBUG: ngx_http_allow_region_rule2 alcf:%p alcf->rules:%p", alcf, alcf->rules);
 
     }
 
@@ -366,11 +371,12 @@ ngx_http_allow_region_create_loc_conf(ngx_conf_t *cf)
 {
     ngx_http_allow_region_loc_conf_t *conf;
     conf = ngx_palloc(cf->pool, sizeof(ngx_http_allow_region_loc_conf_t));
+    ngx_conf_log_error(NGX_LOG_INFO, cf, 0, "DEBUG: ngx_http_allow_region_create_loc_conf2 conf:%p conf->rules:%p", conf, conf->rules);
     if (conf == NULL) {
         return NULL;
     }
-
     conf->enable = NGX_CONF_UNSET;
+    ngx_conf_log_error(NGX_LOG_INFO, cf, 0, "DEBUG: ngx_http_allow_region_create_loc_conf3 conf:%p conf->rules:%p", conf, conf->rules);
     return conf;
 }
 
@@ -380,6 +386,8 @@ ngx_http_allow_region_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
 {
     ngx_http_allow_region_loc_conf_t  *prev = parent;
     ngx_http_allow_region_loc_conf_t  *conf = child;
+
+    ngx_conf_log_error(NGX_LOG_INFO, cf, 0, "DEBUG: ngx_http_allow_region_rule1 conf:%p conf->rules:%p prev:%p, prev->rules:%p", conf, conf->rules, prev, prev->rules);
 
 #if (NGX_HAVE_INET6)
     if (conf->rules == NULL && conf->rules6 == NULL) {
@@ -395,6 +403,7 @@ ngx_http_allow_region_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     if ( conf->enable == -1 ) {
         conf->enable = prev->enable;
     }
+    ngx_conf_log_error(NGX_LOG_INFO, cf, 0, "DEBUG: ngx_http_allow_region_rule2 conf:%p conf->rules:%p prev:%p, prev->rules:%p", conf, conf->rules, prev, prev->rules);
     return NGX_CONF_OK;
 }
 
