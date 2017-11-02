@@ -18,12 +18,12 @@ typedef struct {
 #endif
 
 typedef struct {
-    ngx_array_t                   *rules;     /* array of ngx_http_allow_region_rule_t */
-    ngx_array_t                   *rules_cust;     /* array of ngx_http_allow_region_rule_t */
+    ngx_array_t	                *rules;          /* array of ngx_http_allow_region_rule_t */
+    ngx_array_t                 *rules_cust;     /* array of ngx_http_allow_region_rule_t */
     ngx_flag_t  enable;
 #if (NGX_HAVE_INET6)
-    ngx_array_t                   *rules6;    /* array of ngx_http_allow_region_rule6_t */
-    ngx_array_t                   *rules6_cust;    /* array of ngx_http_allow_region_rule6_t */
+    ngx_array_t                 *rules6;         /* array of ngx_http_allow_region_rule6_t */
+    ngx_array_t                 *rules6_cust;    /* array of ngx_http_allow_region_rule6_t */
 #endif
 } ngx_http_allow_region_loc_conf_t;
 
@@ -116,7 +116,7 @@ ngx_http_allow_region_handler(ngx_http_request_t *r)
     switch (r->connection->sockaddr->sa_family) {
 
     case AF_INET:
-        if (alcf->rules) {
+        if (alcf->rules || alcf->rules_cust) {
             sin = (struct sockaddr_in *) r->connection->sockaddr;
             return ngx_http_allow_region_inet(r, alcf, sin->sin_addr.s_addr);
         }
@@ -136,7 +136,7 @@ ngx_http_allow_region_handler(ngx_http_request_t *r)
             return ngx_http_allow_region_inet(r, alcf, htonl(addr));
         }
 
-        if (alcf->rules6) {
+        if (alcf->rules6 || alcf->rules6_cust) {
             return ngx_http_allow_region_inet6(r, alcf, p);
         }
 
@@ -155,23 +155,16 @@ ngx_http_allow_region_inet(ngx_http_request_t *r, ngx_http_allow_region_loc_conf
     ngx_http_allow_region_rule_t  *rule;
     ngx_http_allow_region_rule_t  *rule_cust;
 
-    ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "DEBUG: ngx_http_allow_region_inet alcf:%p alcf->rules:%p", alcf, alcf->rules);
-
     if (alcf->rules){
         rule = alcf->rules->elts;
         for (i = 0; i < alcf->rules->nelts; i++) {
-
-            ngx_log_debug3(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                           "access: %08XD %08XD %08XD",
-                           addr, rule[i].mask, rule[i].addr);
-
             if ((addr & rule[i].mask) == rule[i].addr) {
                 return NGX_DECLINED;
             }
         }
     }
 
-    if ( alcf->rules_cust ) {
+    if (alcf->rules_cust) {
         rule_cust = alcf->rules_cust->elts;
         for (i = 0; i < alcf->rules_cust->nelts; i++) {
             if (( addr & rule_cust[i].mask) == rule_cust[i].addr) {
@@ -195,35 +188,20 @@ ngx_http_allow_region_inet6(ngx_http_request_t *r, ngx_http_allow_region_loc_con
     ngx_http_allow_region_rule6_t  *rule6;
     ngx_http_allow_region_rule6_t  *rule6_cust;
 
-    rule6 = alcf->rules6->elts;
-    for (i = 0; i < alcf->rules6->nelts; i++) {
-
-#if (NGX_DEBUG)
-        {
-        size_t  cl, ml, al;
-        u_char  ct[NGX_INET6_ADDRSTRLEN];
-        u_char  mt[NGX_INET6_ADDRSTRLEN];
-        u_char  at[NGX_INET6_ADDRSTRLEN];
-
-        cl = ngx_inet6_ntop(p, ct, NGX_INET6_ADDRSTRLEN);
-        ml = ngx_inet6_ntop(rule6[i].mask.s6_addr, mt, NGX_INET6_ADDRSTRLEN);
-        al = ngx_inet6_ntop(rule6[i].addr.s6_addr, at, NGX_INET6_ADDRSTRLEN);
-
-        ngx_log_debug6(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                       "access: %*s %*s %*s", cl, ct, ml, mt, al, at);
-        }
-#endif
-
-        for (n = 0; n < 16; n++) {
-            if ((p[n] & rule6[i].mask.s6_addr[n]) != rule6[i].addr.s6_addr[n]) {
-                goto next;
+    if (alcf->rules6) {
+        rule6 = alcf->rules6->elts;
+        for (i = 0; i < alcf->rules6->nelts; i++) {
+            for (n = 0; n < 16; n++) {
+                if ((p[n] & rule6[i].mask.s6_addr[n]) != rule6[i].addr.s6_addr[n]) {
+                    goto next;
+                }
             }
+    
+            return NGX_DECLINED;
+    
+        next:
+            continue;
         }
-
-        return NGX_DECLINED;
-
-    next:
-        continue;
     }
     if (alcf->rules6_cust) {
         rule6_cust = alcf->rules6_cust->elts;
@@ -260,8 +238,6 @@ ngx_http_allow_region_rule(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     ngx_http_allow_region_rule6_t     *rule6;
     ngx_http_allow_region_rule6_t     *rule6_cust;
 #endif
-
-    ngx_conf_log_error(NGX_LOG_INFO, cf, 0, "DEBUG: ngx_http_allow_region_rule1 alcf:%p alcf->rules:%p", alcf, alcf->rules);
 
     all = 0;
     ngx_memzero(&cidr, sizeof(ngx_cidr_t));
@@ -320,9 +296,6 @@ ngx_http_allow_region_rule(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             rule->mask = cidr.u.in.mask;
             rule->addr = cidr.u.in.addr;
         }
-
-    ngx_conf_log_error(NGX_LOG_INFO, cf, 0, "DEBUG: ngx_http_allow_region_rule2 alcf:%p alcf->rules:%p", alcf, alcf->rules);
-
     }
 
 #if (NGX_HAVE_INET6)
@@ -370,13 +343,11 @@ static void *
 ngx_http_allow_region_create_loc_conf(ngx_conf_t *cf)
 {
     ngx_http_allow_region_loc_conf_t *conf;
-    conf = ngx_palloc(cf->pool, sizeof(ngx_http_allow_region_loc_conf_t));
-    ngx_conf_log_error(NGX_LOG_INFO, cf, 0, "DEBUG: ngx_http_allow_region_create_loc_conf2 conf:%p conf->rules:%p", conf, conf->rules);
+    conf = ngx_pcalloc(cf->pool, sizeof(ngx_http_allow_region_loc_conf_t));
     if (conf == NULL) {
         return NULL;
     }
     conf->enable = NGX_CONF_UNSET;
-    ngx_conf_log_error(NGX_LOG_INFO, cf, 0, "DEBUG: ngx_http_allow_region_create_loc_conf3 conf:%p conf->rules:%p", conf, conf->rules);
     return conf;
 }
 
@@ -387,23 +358,22 @@ ngx_http_allow_region_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_http_allow_region_loc_conf_t  *prev = parent;
     ngx_http_allow_region_loc_conf_t  *conf = child;
 
-    ngx_conf_log_error(NGX_LOG_INFO, cf, 0, "DEBUG: ngx_http_allow_region_rule1 conf:%p conf->rules:%p prev:%p, prev->rules:%p", conf, conf->rules, prev, prev->rules);
-
 #if (NGX_HAVE_INET6)
-    if (conf->rules == NULL && conf->rules6 == NULL) {
-        conf->rules = prev->rules;
+    if (conf->rules6 == NULL) {
         conf->rules6 = prev->rules6;
     }
-#else
+    if (conf->rules6_cust == NULL) {
+        conf->rules6_cust = prev->rules6_cust;
+    }
+#endif
     if (conf->rules == NULL) {
         conf->rules = prev->rules;
     }
-#endif
-
-    if ( conf->enable == -1 ) {
-        conf->enable = prev->enable;
+    if (conf->rules_cust == NULL) {
+        conf->rules_cust = prev->rules_cust;
     }
-    ngx_conf_log_error(NGX_LOG_INFO, cf, 0, "DEBUG: ngx_http_allow_region_rule2 conf:%p conf->rules:%p prev:%p, prev->rules:%p", conf, conf->rules, prev, prev->rules);
+
+    ngx_conf_merge_value(conf->enable, prev->enable, 0);
     return NGX_CONF_OK;
 }
 
